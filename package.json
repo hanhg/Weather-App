@@ -1,0 +1,6 @@
+{
+  "dependencies": {
+    "geocode": "^0.0.3",
+    "react-geocode": "^1.0.0-alpha.1"
+  }
+}

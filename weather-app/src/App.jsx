@@ -1,65 +1,119 @@
-import {useEffect, useState} from 'react'
+import {useEffect, useRef, useState} from 'react'
+import Screen from './Screen'
 import './App.css'
+import {
+  setKey,
+  setDefaults,
+  setLanguage,
+  setRegion,
+  fromAddress,
+  fromLatLng,
+  fromPlaceId,
+  setLocationType,
+  geocode,
+  RequestType,
+} from "react-geocode";
 
 function App() {
-  const [cityName, setCityName] = useState("")
-  const [searchText, setSearchText] = useState("")
-  const [weatherdata, setWeatherData] = useState(false);
+  const inputRef = useRef();
+  const [weatherData, setWeatherData] = useState(false);
 
-  const handleSearchChange = (e) => {
-    setSearchText(e.target.search.value);
-    console.log(serachText);
-  }
-  const handleSubmit = () => {
-    setCityName(searchText);
+  useEffect(() => {
+    setKey('AIzaSyDsxOBBw-Wo7LvERBajeIxYGAO_0VGBIgY'/*import.meta.env.VITE_APP_GOOGLE_MAPS_KEY*/); 
+  }, []);
+
+  const enterSearch = (e) => {
+    if(e.key === 'Enter')
+    {
+      search(inputRef.current.value);
+    }
   }
 
-  const search = async(city) => {
+  const search = async(input) => {
+    if(input === "")
+    {
+      setWeatherData(false);
+      return;
+    }
+    
+    input = input.split(', ');
+    let apiLocationInput = input[0];
+    for(let i = 1; i < input.length; i++)
+    {
+      apiLocationInput += "," + input[i];
+    }
     try {
-      
-      const url = `https://api.openweathermap.org/data/2.5/weather?q=${city}&appid=${import.meta.env.VITE_APP_ID}&units=imperial`;
+      inputRef.current.value = "";
+      const url = `https://api.openweathermap.org/data/2.5/weather?q=${apiLocationInput}&appid=${import.meta.env.VITE_APP_ID}&units=imperial`;
       const response = await fetch(url);
       const data = await response.json();
+      let tempCityName = "";
+      let tempStateName = "";
+      let tempCountryName = "";
+
+      //get city from latitude longitude
+      await fromLatLng(data.coord.lat, data.coord.lon)
+      .then( ({results}) => {
+        const { city, state, country } = results[0].address_components.reduce(
+          (acc, component) => {
+            if (component.types.includes("locality"))
+              acc.city = component.long_name;
+            else if (component.types.includes("administrative_area_level_1"))
+              acc.state = component.long_name;
+            else if (component.types.includes("country"))
+              acc.country = component.long_name;
+            return acc;
+          },
+          {}
+        );
+        tempCityName = city;
+        tempStateName = state;
+        tempCountryName = country;
+      })
+      .catch(console.error);
+        /*const cityComponent = addressComponents.find(
+          (component) => component.types.includes("locality")
+        );
+        if (cityComponent) {
+          tempCityName = cityComponent.long_name;
+          console.log(tempCityName);
+        }
+      })
+      .catch((error) => console.error(error));*/
+      if(!tempCityName || tempCityName === "")
+      {
+        tempCityName = input[0].substring(0,1).toUpperCase() + input[0].substring(1,-1).toLowerCase();
+      }
       console.log(data);
       setWeatherData({
-        temp: data.main.temp,
+        temperature: data.main.temp,
+        cityName: tempCityName,
+        stateName: tempStateName,
+        countryName: tempCountryName,
+        weather: data.weather,
       })
       
     } catch(error) {
       console.log(error);
       setWeatherData(false);
     }
+    
   } 
 
   useEffect(()=>{
-    search(cityName);
+    search("");
   },[]);
   return (
     <>
     <img src="../public/Wearther.png" alt="Wearther logo" className="mx-auto"/>
-    <div className="mx-auto w-fit h-fit mb-4">
-      <form onSubmit={handleSubmit}>
-      <div className="max-w-xl">
-        <div className="flex space-x-4">
-          <div className="flex rounded-md overflow-hidden w-full">
-            <input type="text" name="search" className="w-96 rounded-md rounded-r-none p-2" onChange={handleSearchChange}/>
-            <button type="submit" className="bg-indigo-600 text-white px-6 text-lg font-semibold py-4 rounded-r-md">Go</button>
-          </div>
-          <button className="bg-white px-6 text-lg font-semibold py-4 rounded-md">Clear</button>
+      <div className="flex space-x-4 w-3/4 mx-auto ">
+        <div className="flex rounded-3xl border-black border-2 overflow-hidden w-full">
+          <input ref={inputRef} type="text" name="search" onKeyDown={enterSearch} placeholder="Type in a city name or city name, state code, country code" className="w-full rounded-md rounded-r-none p-2"/>
+          <button onClick={() => search(inputRef.current.value)} className="bg-indigo-600 text-white px-6 text-lg font-semibold py-4 rounded-r-md">Go</button>
         </div>
       </div>
-    </form>
-    </div>
-    <div style={{width: "1280px", height: "720px"}} className="mx-auto my-2">
-      <div style={{backgroundImage: "url(../public/Sunny.gif)"}}  className="flex flex-wrap bg-cover min-w-96 min-h-96 w-5/6 h-5/6 mx-auto rounded-xl border-2 border-black p-2">
-        <div style={{backgroundColor: "rgba(100,100,100,.50)"}} className="rounded-3xl w-fit h-fit top-1/2 left-1/2 p-2">
-          <p className="text-white text-9xl">{Math.round(weatherdata.temp)}°F</p>
-        </div>
-        <div style={{backgroundColor: "rgba(100,100,100,.50)"}} className="rounded-3xl w-fit h-fit top-1/2 left-1/2 p-2 mx-1">
-          <p className="text-white text-3xl">Sunny</p>
-        </div>
-      </div>
-    </div>
+    { weatherData &&
+    <Screen weatherData={weatherData}/> }
     </>
   )
 }
